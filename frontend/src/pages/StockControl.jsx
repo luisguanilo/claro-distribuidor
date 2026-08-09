@@ -14,6 +14,10 @@ const StockControl = () => {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [cantidadIngreso, setCantidadIngreso] = useState('');
 
+    // Archivos
+    const [fileTransform, setFileTransform] = useState(null);
+    const [fileImport, setFileImport] = useState(null);
+
     useEffect(() => {
         socket.on('stock_update', () => {
             if (searchQuery) handleSearch(null, searchQuery);
@@ -77,10 +81,80 @@ const StockControl = () => {
         }
     };
 
+    const handleTransform = async (e) => {
+        e.preventDefault();
+        if(!fileTransform) return alert("Por favor seleccione un archivo original de Claro");
+        setLoading(true);
+        const formData = new FormData();
+        formData.append('file', fileTransform);
+        try {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api/productos/transformar-claro', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'plantilla_limpia_claro.xlsx';
+                a.click();
+            } else {
+                const errData = await res.json();
+                alert("Error al procesar el archivo: " + (errData.error || "Desconocido"));
+            }
+        } catch(err) { console.error(err) } finally { setLoading(false); }
+    };
+
+    const handleImport = async (e) => {
+        e.preventDefault();
+        if(!fileImport) return alert("Por favor seleccione la plantilla ya rellenada");
+        setLoading(true);
+        const formData = new FormData();
+        formData.append('file', fileImport);
+        try {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api/productos/importar', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(`Importación exitosa.\nProductos nuevos creados: ${data.creados}\nProductos actualizados: ${data.actualizados}`);
+                if (searchQuery) handleSearch(null, searchQuery);
+            } else {
+                alert("Error en la importación. Revisa la consola.");
+            }
+        } catch(err) { console.error(err) } finally { setLoading(false); }
+    };
+
     return (
         <div style={{ padding: '20px' }}>
-            <h2>Control de Stock / Ingreso de Mercadería</h2>
+            <h2>Control de Stock y Carga de Mercadería</h2>
             
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <div className="glass-panel mt-2 mb-2" style={{ flex: 1, minWidth: '300px' }}>
+                    <h3>Paso 1: Generar Plantilla</h3>
+                    <p className="text-secondary mb-2" style={{fontSize: '0.85rem'}}>Sube el archivo Excel que envía Claro para extraer los modelos y generar una plantilla limpia.</p>
+                    <form onSubmit={handleTransform} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input type="file" className="input-field" accept=".xlsx" onChange={(e) => setFileTransform(e.target.files[0])} />
+                        <button type="submit" className="btn-primary" disabled={loading || !fileTransform}>Extraer y Descargar Plantilla</button>
+                    </form>
+                </div>
+
+                <div className="glass-panel mt-2 mb-2" style={{ flex: 1, minWidth: '300px' }}>
+                    <h3>Paso 2: Subir Inventario</h3>
+                    <p className="text-secondary mb-2" style={{fontSize: '0.85rem'}}>Sube la plantilla que descargaste en el paso 1 ya con las cantidades y precios rellenados.</p>
+                    <form onSubmit={handleImport} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input type="file" className="input-field" accept=".xlsx" onChange={(e) => setFileImport(e.target.files[0])} />
+                        <button type="submit" className="btn-primary" disabled={loading || !fileImport}>Importar a la Base de Datos</button>
+                    </form>
+                </div>
+            </div>
+
+            <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '20px 0' }} />
+
             <div className="glass-panel mt-2 mb-2">
                 <form onSubmit={handleSearch} style={{ display: 'flex', gap: '10px' }}>
                     <input 

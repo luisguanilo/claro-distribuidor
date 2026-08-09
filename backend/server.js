@@ -349,8 +349,122 @@ io.on('connection', (socket) => {
         console.log('Cliente desconectado:', socket.id);
     });
 });
+// --- IMPORTACIÓN Y TRANSFORMACIÓN ---
+const xlsx = require('xlsx');
+
+app.post('/api/productos/transformar-claro', authenticateToken, requireAdmin, upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No se subió archivo' });
+
+    try {
+        const workbook = xlsx.readFile(req.file.path);
+        let productosUnicos = new Set();
+        
+        workbook.SheetNames.forEach(sheetName => {
+            const worksheet = workbook.Sheets[sheetName];
+            const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            data.forEach(row => {
+                if (!row) return;
+                const nombreComercial = row.find(cell => typeof cell === 'string' && cell.trim() !== '' && cell.length > 3 && cell !== 'NOMBRE COMERCIAL' && !cell.includes('Max'));
+                
+                row.forEach(cell => {
+                    if (typeof cell === 'string' && 
+                        (cell.toUpperCase().includes('APPLE') || 
+                         cell.toUpperCase().includes('SAMSUNG') || 
+                         cell.toUpperCase().includes('MOTOROLA') || 
+                         cell.toUpperCase().includes('XIAOMI') ||
+                         cell.toUpperCase().includes('HUAWEI') ||
+                         cell.toUpperCase().includes('LG') ||
+                         cell.toUpperCase().includes('HONOR') ||
+                         cell.toUpperCase().includes('ZTE') ||
+                         cell.toUpperCase().includes('ALCATEL') ||
+                         cell.toUpperCase().includes('OPPO') ||
+                         cell.toUpperCase().includes('VIVO')
+                         )) {
+                        productosUnicos.add(cell.trim());
+                    }
+                });
+            });
+        });
+
+        const productosArray = Array.from(productosUnicos).map((nombre, index) => ({
+            SKU: 'SKU-' + (index + 1000),
+            Nombre: nombre,
+            Categoria: 'Celulares',
+            Costo: 0,
+            Precio_Venta: 0,
+            Cantidad: 0
+        }));
+
+        const newWorkbook = xlsx.utils.book_new();
+        const newWorksheet = xlsx.utils.json_to_sheet(productosArray);
+        xlsx.utils.book_append_sheet(newWorkbook, newWorksheet, 'Plantilla Importacion');
+
+        const outPath = path.join(__dirname, 'uploads', 'plantilla_claro.xlsx');
+        if (!fs.existsSync(path.join(__dirname, 'uploads'))) fs.mkdirSync(path.join(__dirname, 'uploads'));
+        xlsx.writeFile(newWorkbook, outPath);
+
+        res.download(outPath, 'plantilla_limpia_claro.xlsx', () => {
+            if(fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            if(fs.existsSync(outPath)) fs.unlinkSync(outPath);
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error procesando archivo: ' + err.message });
+    }
+});
+
+app.post('/api/productos/importar', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No se subió archivo' });
+
+    try {
+        const workbook = xlsx.readFile(req.file.path);
+        const sheetName = workbook.SheetNames[0];
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        let creados = 0;
+        let actualizados = 0;
+
+        for (const row of data) {
+            const sku = row.SKU || row.sku;
+            const nombre = row.Nombre || row.nombre;
+            const categoriaNombre = row.Categoria || row.categoria || 'Sin Categoría';
+            const costo = parseFloat(row.Costo || row.costo || 0);
+            const precioVenta = parseFloat(row.Precio_Venta || row['Precio Venta'] || row.precio || 0);
+            const cantidad = parseInt(row.Cantidad || row.cantidad || row.stock || 0);
+
+            if (!sku || !nombre) continue;
+
+            let categoria = await dbGet('SELECT * FROM Categorias WHERE nombre = ?', [categoriaNombre]);
+            if (!categoria) {
+                const result = await dbRun('INSERT INTO Categorias (nombre) VALUES (?)', [categoriaNombre]);
+                categoria = { id: result.id };
+            }
+
+            const producto = await dbGet('SELECT * FROM Productos WHERE sku = ?', [sku]);
+            if (producto) {
+                await dbRun('UPDATE Productos SET costo = ?, precio_venta = ?, stock_actual = stock_actual + ? WHERE id = ?', 
+                    [costo, precioVenta, cantidad, producto.id]);
+                actualizados++;
+            } else {
+                await dbRun('INSERT INTO Productos (sku, nombre, categoria_id, tipo, grupo_reporte, costo, precio_venta, stock_actual, stock_minimo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [sku, nombre, categoria.id, 'Físico', categoriaNombre, costo, precioVenta, cantidad, 5]);
+                creados++;
+            }
+        }
+
+        if(fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.json({ message: 'Importación completada', creados, actualizados });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error procesando importación' });
+    }
+});
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Servidor backend corriendo en el puerto ${PORT}`);
 });
+
