@@ -13,6 +13,7 @@ const StockControl = () => {
     // Ingreso state
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [cantidadIngreso, setCantidadIngreso] = useState('');
+    const [precioVentaInput, setPrecioVentaInput] = useState('');
 
     // Archivos
     const [fileTransform, setFileTransform] = useState(null);
@@ -29,10 +30,9 @@ const StockControl = () => {
 
     const handleSearch = async (e, query = searchQuery) => {
         if (e) e.preventDefault();
-        if (!query.trim()) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/productos?q=${query}`, {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/productos?q=${query}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -73,6 +73,32 @@ const StockControl = () => {
                 handleSearch(null, searchQuery); // Refresh
             } else {
                 alert('Error al actualizar stock.');
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleActualizarPrecio = async (e) => {
+        e.preventDefault();
+        if (!selectedProduct || !precioVentaInput || precioVentaInput < 0) return;
+        setLoading(true);
+        try {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/productos/${selectedProduct.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ precio_venta: Number(precioVentaInput) })
+            });
+
+            if (res.ok) {
+                alert('Precio actualizado exitosamente.');
+                setPrecioVentaInput('');
+                setSelectedProduct(null);
+                handleSearch(null, searchQuery);
+            } else {
+                alert('Error al actualizar precio.');
             }
         } catch (err) {
             console.error(err);
@@ -196,7 +222,11 @@ const StockControl = () => {
                                                 <button 
                                                     className="btn-primary" 
                                                     style={{ padding: '4px 8px', fontSize: '0.9rem' }}
-                                                    onClick={() => setSelectedProduct(p)}
+                                                    onClick={() => {
+                                                        setSelectedProduct(p);
+                                                        setPrecioVentaInput(p.precio_venta || '');
+                                                        setCantidadIngreso('');
+                                                    }}
                                                 >
                                                     Seleccionar
                                                 </button>
@@ -213,25 +243,42 @@ const StockControl = () => {
 
                 {selectedProduct && (
                     <div className="glass-panel" style={{ flex: 1, position: 'sticky', top: '20px', border: '1px solid var(--primary-color)' }}>
-                        <h3 className="mb-2">Ingresar Mercadería</h3>
+                        <h3 className="mb-2">Gestionar Producto</h3>
                         <div className="mb-2">
                             <strong>{selectedProduct.nombre}</strong><br/>
                             <span className="text-secondary">SKU: {selectedProduct.sku}</span><br/>
-                            <span className="text-secondary">Stock Actual: {selectedProduct.stock_actual}</span>
+                            <span className="text-secondary">Stock Actual: {selectedProduct.stock_actual}</span><br/>
+                            <span className="text-secondary">Precio Actual: S/.{selectedProduct.precio_venta}</span>
                         </div>
                         
-                        <form onSubmit={handleIngreso}>
-                            <label style={{ display: 'block', marginBottom: '5px' }}>Cantidad a ingresar:</label>
+                        <form onSubmit={handleIngreso} style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-color)' }}>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Agregar Stock (Ingreso):</label>
                             <input 
                                 type="number" 
                                 min="1" 
                                 className="input-field mb-2" 
                                 value={cantidadIngreso} 
                                 onChange={e => setCantidadIngreso(e.target.value)} 
+                                placeholder="Cant. a sumar"
+                            />
+                            <button type="submit" className="btn-primary" disabled={loading || !cantidadIngreso} style={{width: '100%'}}>
+                                Confirmar Ingreso
+                            </button>
+                        </form>
+
+                        <form onSubmit={handleActualizarPrecio}>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Actualizar Precio de Venta (S/.):</label>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                min="0" 
+                                className="input-field mb-2" 
+                                value={precioVentaInput} 
+                                onChange={e => setPrecioVentaInput(e.target.value)} 
                                 required 
                             />
-                            <button type="submit" className="btn-primary" disabled={loading} style={{width: '100%'}}>
-                                Confirmar Ingreso
+                            <button type="submit" className="btn-primary" disabled={loading} style={{width: '100%', background: 'var(--success-color)'}}>
+                                Guardar Precio
                             </button>
                         </form>
                     </div>
@@ -242,3 +289,4 @@ const StockControl = () => {
 };
 
 export default StockControl;
+

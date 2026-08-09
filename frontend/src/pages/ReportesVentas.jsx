@@ -153,7 +153,7 @@ const ReportesVentas = () => {
                                     {data.cantidad} <span style={{fontSize: '0.8rem', color: 'var(--text-color)', fontWeight: 'normal'}}>unidades/servicios</span>
                                 </div>
                                 <div className="text-green mt-1">
-                                    Valor: ${data.total.toFixed(2)}
+                                    Valor: S/.{data.total.toFixed(2)}
                                 </div>
                             </div>
                         );
@@ -187,7 +187,7 @@ const ReportesVentas = () => {
                         onClick={() => setSelectedCategory(selectedCategory === 'ALL' ? null : 'ALL')}
                     >
                         <div className="card-title">Ingresos/Comisiones Totales</div>
-                        <div className="card-value text-green">${totalGeneralVentas.toFixed(2)}</div>
+                        <div className="card-value text-green">S/.{totalGeneralVentas.toFixed(2)}</div>
                         <div className="text-secondary mt-1" style={{fontSize:'0.8rem'}}>Click para ver todo el detalle</div>
                     </div>
                 </div>
@@ -219,7 +219,7 @@ const ReportesVentas = () => {
                                             <td>{r.detalle}</td>
                                             <td>{r.asesor_nombre}</td>
                                             <td>{r.cantidad}</td>
-                                            <td className="text-green">${r.total?.toFixed(2)}</td>
+                                            <td className="text-green">S/.{r.total?.toFixed(2)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

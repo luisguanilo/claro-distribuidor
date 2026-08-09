@@ -154,6 +154,37 @@ app.get('/api/productos', authenticateToken, async (req, res) => {
     }
 });
 
+app.put('/api/productos/:id', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { precio_venta, stock_actual } = req.body;
+        
+        let query = 'UPDATE Productos SET ';
+        let params = [];
+        let updates = [];
+
+        if (precio_venta !== undefined) {
+            updates.push('precio_venta = ?');
+            params.push(parseFloat(precio_venta));
+        }
+        if (stock_actual !== undefined) {
+            updates.push('stock_actual = ?');
+            params.push(parseInt(stock_actual));
+        }
+
+        if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+        query += updates.join(', ') + ' WHERE id = ?';
+        params.push(id);
+
+        await dbRun(query, params);
+        io.emit('stock_update', await dbAll('SELECT * FROM Productos'));
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- MOVIMIENTOS ---
 app.post('/api/movimientos', authenticateToken, async (req, res) => {
     const { producto_id, tipo, cantidad, ip, latitud, longitud, dispositivo } = req.body;
@@ -387,14 +418,30 @@ app.post('/api/productos/transformar-claro', authenticateToken, requireAdmin, up
             });
         });
 
-        const productosArray = Array.from(productosUnicos).map((nombre, index) => ({
-            SKU: 'SKU-' + (index + 1000),
-            Nombre: nombre,
-            Categoria: 'Celulares',
-            Costo: 0,
-            Precio_Venta: 0,
-            Cantidad: 0
-        }));
+        const productosArray = Array.from(productosUnicos).map((nombre, index) => {
+            let marca = 'Otros';
+            if (nombre.toUpperCase().includes('APPLE')) marca = 'Apple';
+            else if (nombre.toUpperCase().includes('SAMSUNG')) marca = 'Samsung';
+            else if (nombre.toUpperCase().includes('MOTOROLA')) marca = 'Motorola';
+            else if (nombre.toUpperCase().includes('XIAOMI')) marca = 'Xiaomi';
+            else if (nombre.toUpperCase().includes('HUAWEI')) marca = 'Huawei';
+            else if (nombre.toUpperCase().includes('LG')) marca = 'LG';
+            else if (nombre.toUpperCase().includes('HONOR')) marca = 'Honor';
+            else if (nombre.toUpperCase().includes('ZTE')) marca = 'ZTE';
+            else if (nombre.toUpperCase().includes('ALCATEL')) marca = 'Alcatel';
+            else if (nombre.toUpperCase().includes('OPPO')) marca = 'Oppo';
+            else if (nombre.toUpperCase().includes('VIVO')) marca = 'Vivo';
+
+            return {
+                SKU: 'SKU-' + (index + 1000),
+                Nombre: nombre,
+                Categoria_Principal: 'Celulares',
+                Marca: marca,
+                Costo: 0,
+                Precio_Venta: 0,
+                Cantidad: 0
+            };
+        });
 
         const newWorkbook = xlsx.utils.book_new();
         const newWorksheet = xlsx.utils.json_to_sheet(productosArray);
@@ -429,27 +476,36 @@ app.post('/api/productos/importar', authenticateToken, requireAdmin, upload.sing
         for (const row of data) {
             const sku = row.SKU || row.sku;
             const nombre = row.Nombre || row.nombre;
-            const categoriaNombre = row.Categoria || row.categoria || 'Sin Categoría';
+            const categoriaPrincipalNombre = row.Categoria_Principal || row.categoria_principal || row.Categoria || row.categoria || 'Sin Categoría';
+            const marcaNombre = row.Marca || row.marca || 'Generico';
             const costo = parseFloat(row.Costo || row.costo || 0);
             const precioVenta = parseFloat(row.Precio_Venta || row['Precio Venta'] || row.precio || 0);
             const cantidad = parseInt(row.Cantidad || row.cantidad || row.stock || 0);
 
             if (!sku || !nombre) continue;
 
-            let categoria = await dbGet('SELECT * FROM Categorias WHERE nombre = ?', [categoriaNombre]);
-            if (!categoria) {
-                const result = await dbRun('INSERT INTO Categorias (nombre) VALUES (?)', [categoriaNombre]);
-                categoria = { id: result.id };
+            // Handle Principal Category
+            let catPrincipal = await dbGet('SELECT * FROM Categorias WHERE nombre = ? AND parent_id IS NULL', [categoriaPrincipalNombre]);
+            if (!catPrincipal) {
+                const result = await dbRun('INSERT INTO Categorias (nombre, parent_id) VALUES (?, NULL)', [categoriaPrincipalNombre]);
+                catPrincipal = { id: result.id };
+            }
+
+            // Handle Subcategory (Marca)
+            let subCat = await dbGet('SELECT * FROM Categorias WHERE nombre = ? AND parent_id = ?', [marcaNombre, catPrincipal.id]);
+            if (!subCat) {
+                const result = await dbRun('INSERT INTO Categorias (nombre, parent_id) VALUES (?, ?)', [marcaNombre, catPrincipal.id]);
+                subCat = { id: result.id };
             }
 
             const producto = await dbGet('SELECT * FROM Productos WHERE sku = ?', [sku]);
             if (producto) {
-                await dbRun('UPDATE Productos SET costo = ?, precio_venta = ?, stock_actual = stock_actual + ? WHERE id = ?', 
-                    [costo, precioVenta, cantidad, producto.id]);
+                await dbRun('UPDATE Productos SET costo = ?, precio_venta = ?, stock_actual = stock_actual + ?, categoria_id = ? WHERE id = ?', 
+                    [costo, precioVenta, cantidad, subCat.id, producto.id]);
                 actualizados++;
             } else {
                 await dbRun('INSERT INTO Productos (sku, nombre, categoria_id, tipo, grupo_reporte, costo, precio_venta, stock_actual, stock_minimo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [sku, nombre, categoria.id, 'Físico', categoriaNombre, costo, precioVenta, cantidad, 5]);
+                    [sku, nombre, subCat.id, 'Físico', categoriaPrincipalNombre, costo, precioVenta, cantidad, 5]);
                 creados++;
             }
         }

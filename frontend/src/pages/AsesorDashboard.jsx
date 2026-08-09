@@ -59,7 +59,7 @@ const AsesorDashboard = () => {
 
     const fetchCategorias = async (parentId) => {
         try {
-            const res = await fetch(`/api/categorias?parent_id=${parentId}`, {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/categorias?parent_id=${parentId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -72,7 +72,7 @@ const AsesorDashboard = () => {
 
     const fetchProductosPorCategoria = async (categoriaId) => {
         try {
-            const res = await fetch(`/api/productos?categoria_id=${categoriaId}`, {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/productos?categoria_id=${categoriaId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             return await res.json();
@@ -83,13 +83,9 @@ const AsesorDashboard = () => {
     };
 
     const searchProductos = async (e) => {
-        e.preventDefault();
-        if (!searchQuery.trim()) {
-            setSearchResults(null);
-            return;
-        }
+        if (e) e.preventDefault();
         try {
-            const res = await fetch(`/api/productos?q=${searchQuery}`, {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/productos?q=${searchQuery}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -286,7 +282,7 @@ const AsesorDashboard = () => {
                 <div className="grid-cards mb-2">
                     <div className="card">
                         <div className="card-title">Comisiones del Mes</div>
-                        <div className="card-value text-green">${comisiones.total_mes}</div>
+                        <div className="card-value text-green">S/.{comisiones.total_mes}</div>
                     </div>
                 </div>
 
@@ -330,7 +326,7 @@ const AsesorDashboard = () => {
                                                 <tr key={p.id}>
                                                     <td>{p.sku}</td>
                                                     <td>{p.nombre}</td>
-                                                    <td>${p.precio_venta}</td>
+                                                    <td>S/.{p.precio_venta}</td>
                                                     <td className={p.stock_actual > 0 ? 'text-green' : 'text-red'}>{p.stock_actual}</td>
                                                     <td>{p.categoria_nombre || 'N/A'}</td>
                                                 </tr>
@@ -372,25 +368,32 @@ const AsesorDashboard = () => {
                     ) : (
                         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
                             <div style={{ flex: 2, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
-                                {productos.filter(p => p.stock_actual > 0).length === 0 ? (
-                                    <p>No hay productos con stock en esta categoría.</p>
+                                {productos.length === 0 ? (
+                                    <p>No hay productos en esta categoría.</p>
                                 ) : (
-                                    productos.filter(p => p.stock_actual > 0).map(p => (
+                                    productos.map(p => (
                                         <div 
                                             key={p.id} 
                                             className={`card ${productoSeleccionado?.id === p.id ? 'active' : ''}`}
                                             style={{ 
-                                                cursor: 'pointer', 
+                                                cursor: p.stock_actual > 0 ? 'pointer' : 'not-allowed', 
                                                 border: productoSeleccionado?.id === p.id ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
-                                                background: productoSeleccionado?.id === p.id ? 'rgba(238, 20, 20, 0.05)' : 'var(--card-bg)'
+                                                background: productoSeleccionado?.id === p.id ? 'rgba(238, 20, 20, 0.05)' : 'var(--card-bg)',
+                                                opacity: p.stock_actual > 0 ? 1 : 0.6
                                             }}
-                                            onClick={() => setProductoSeleccionado(p)}
+                                            onClick={() => {
+                                                if (p.stock_actual > 0) setProductoSeleccionado(p);
+                                            }}
                                         >
                                             <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '10px' }}>{p.nombre}</div>
                                             <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '5px' }}>SKU: {p.sku}</div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>${p.precio_venta}</span>
-                                                <span className="text-green" style={{ fontSize: '0.9rem' }}>Stock: {p.stock_actual}</span>
+                                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>S/.{p.precio_venta}</span>
+                                                {p.stock_actual > 0 ? (
+                                                    <span className="text-green" style={{ fontSize: '0.9rem' }}>Stock: {p.stock_actual}</span>
+                                                ) : (
+                                                    <span className="text-red" style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>AGOTADO</span>
+                                                )}
                                             </div>
                                         </div>
                                     ))
@@ -403,7 +406,7 @@ const AsesorDashboard = () => {
                                     <h4 className="mb-2">Registrar Venta</h4>
                                     <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
                                         <strong>{productoSeleccionado.nombre}</strong><br/>
-                                        Precio: ${productoSeleccionado.precio_venta}
+                                        Precio: S/.{productoSeleccionado.precio_venta}
                                     </div>
                                     <form onSubmit={handleVenta}>
                                         <label style={{ display: 'block', marginBottom: '5px' }}>Cantidad:</label>
@@ -411,7 +414,7 @@ const AsesorDashboard = () => {
                                         
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '1.1rem' }}>
                                             <span>Total:</span>
-                                            <strong>${(productoSeleccionado.precio_venta * cantidad).toFixed(2)}</strong>
+                                            <strong>S/.{(productoSeleccionado.precio_venta * cantidad).toFixed(2)}</strong>
                                         </div>
 
                                         <button type="submit" className="btn-primary" disabled={loading} style={{width: '100%'}}>
@@ -452,3 +455,4 @@ const AsesorDashboard = () => {
 };
 
 export default AsesorDashboard;
+

@@ -46,7 +46,7 @@ const AdminDashboard = () => {
             <div className="grid-cards mt-2 mb-2">
                 <div className="card">
                     <div className="card-title">Valor del Inventario</div>
-                    <div className="card-value">${dashboardData.valor_inventario.toFixed(2)}</div>
+                    <div className="card-value">S/.{dashboardData.valor_inventario.toFixed(2)}</div>
                 </div>
                 <div className="card">
                     <div className="card-title">Ventas de Hoy</div>

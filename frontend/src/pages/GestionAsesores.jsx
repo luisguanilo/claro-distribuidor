@@ -71,7 +71,7 @@ const GestionAsesores = () => {
     const handleDelete = async (id) => {
         if (!window.confirm('¿Está seguro de desactivar a este asesor?')) return;
         try {
-            const res = await fetch(`/api/usuarios/${id}`, {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/usuarios/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -235,3 +235,4 @@ const GestionAsesores = () => {
 };
 
 export default GestionAsesores;
+
