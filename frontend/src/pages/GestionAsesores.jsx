@@ -61,6 +61,7 @@ const GestionAsesores = () => {
             }
         } catch (err) {
             console.error(err);
+            alert('Error de conexión. Asegúrate de que el servidor esté encendido (npm run dev). Detalle: ' + err.message);
         }
     };
 
