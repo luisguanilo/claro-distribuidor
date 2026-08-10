@@ -38,7 +38,7 @@ const GestionAsesores = () => {
         try {
             const method = editingUserId ? 'PUT' : 'POST';
             const url = editingUserId 
-                ? `/api/usuarios/${editingUserId}` 
+                ? (import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/usuarios/${editingUserId}` 
                 : (import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api/usuarios';
 
             const res = await fetch(url, {
