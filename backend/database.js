@@ -55,10 +55,21 @@ const convertToPg = (sql) => {
 
 const dbRun = async (sql, params = []) => {
     if (usePostgres) {
-        // En Postgres, dbRun no devuelve el lastID automáticamente a menos que se use RETURNING, 
-        // pero esto es suficiente para la mayoría de actualizaciones.
-        const result = await pool.query(convertToPg(sql), params);
-        return { changes: result.rowCount };
+        let pgSql = convertToPg(sql);
+        if (pgSql.trim().toUpperCase().startsWith('INSERT') && !pgSql.toUpperCase().includes('RETURNING')) {
+            pgSql += ' RETURNING id';
+        }
+        try {
+            const result = await pool.query(pgSql, params);
+            return { changes: result.rowCount, id: result.rows[0] ? result.rows[0].id : null };
+        } catch (err) {
+            if (err.message.includes('column "id" does not exist')) {
+                const fallbackSql = convertToPg(sql);
+                const res = await pool.query(fallbackSql, params);
+                return { changes: res.rowCount };
+            }
+            throw err;
+        }
     } else {
         return new Promise((resolve, reject) => {
             db.run(sql, params, function (err) {
