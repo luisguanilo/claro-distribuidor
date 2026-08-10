@@ -23,11 +23,13 @@ const AsesorDashboard = () => {
     // Form states
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const [cantidad, setCantidad] = useState(1);
+    const [fechaVenta, setFechaVenta] = useState('');
     
     // Service Form states
     const [clienteNombre, setClienteNombre] = useState('');
     const [identificacion, setIdentificacion] = useState('');
     const [tipoServicio, setTipoServicio] = useState('alta nueva post');
+    const [fechaServicio, setFechaServicio] = useState('');
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -207,7 +209,8 @@ const AsesorDashboard = () => {
                 ip: '127.0.0.1',
                 latitud: coords.lat,
                 longitud: coords.lng,
-                dispositivo: navigator.userAgent
+                dispositivo: navigator.userAgent,
+                fecha: fechaVenta || undefined
             };
             
             if (isOffline) {
@@ -224,6 +227,7 @@ const AsesorDashboard = () => {
                 setProductos(prods);
                 setProductoSeleccionado(null);
                 setCantidad(1);
+                setFechaVenta('');
             }
         } catch (err) {
             alert('Error: Debe permitir la geolocalización para registrar la venta.');
@@ -244,7 +248,7 @@ const AsesorDashboard = () => {
     const handleServicio = async (e) => {
         e.preventDefault();
         setLoading(true);
-        const payload = { cliente_nombre: clienteNombre, identificacion, tipo_servicio: tipoServicio };
+        const payload = { cliente_nombre: clienteNombre, identificacion, tipo_servicio: tipoServicio, fecha: fechaServicio || undefined };
 
         if (isOffline) {
             const queue = await localforage.getItem('queueServicios') || [];
@@ -257,6 +261,7 @@ const AsesorDashboard = () => {
             fetchComisiones();
             setClienteNombre('');
             setIdentificacion('');
+            setFechaServicio('');
         }
         setLoading(false);
     };
@@ -416,6 +421,9 @@ const AsesorDashboard = () => {
                                         <label style={{ display: 'block', marginBottom: '5px' }}>Cantidad:</label>
                                         <input type="number" min="1" max={productoSeleccionado.stock_actual} className="input-field mb-2" value={cantidad} onChange={e => setCantidad(Number(e.target.value))} required />
                                         
+                                        <label style={{ display: 'block', marginBottom: '5px' }}>Fecha (Opcional - por defecto Hoy):</label>
+                                        <input type="datetime-local" className="input-field mb-2" value={fechaVenta} onChange={e => setFechaVenta(e.target.value)} />
+                                        
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '1.1rem' }}>
                                             <span>Total:</span>
                                             <strong>S/.{(productoSeleccionado.precio_venta * cantidad).toFixed(2)}</strong>
@@ -447,6 +455,10 @@ const AsesorDashboard = () => {
                             <option value="TFI">Contrato TFI</option>
                             <option value="Renovación">Renovación</option>
                         </select>
+                        <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Fecha (Opcional):</label>
+                            <input type="datetime-local" className="input-field" value={fechaServicio} onChange={e => setFechaServicio(e.target.value)} />
+                        </div>
                         <button type="submit" className="btn-primary" disabled={loading} style={{ minWidth: '150px' }}>
                             Registrar
                         </button>

@@ -189,13 +189,14 @@ app.put('/api/productos/:id', authenticateToken, requireAdmin, async (req, res) 
 
 // --- MOVIMIENTOS ---
 app.post('/api/movimientos', authenticateToken, async (req, res) => {
-    const { producto_id, tipo, cantidad, ip, latitud, longitud, dispositivo } = req.body;
+    const { producto_id, tipo, cantidad, ip, latitud, longitud, dispositivo, fecha } = req.body;
     try {
+        const fechaVal = fecha ? new Date(fecha).toISOString() : new Date().toISOString();
         // Registrar movimiento
         await dbRun(
-            `INSERT INTO Movimientos (producto_id, tipo, cantidad, usuario_id, ip, latitud, longitud, dispositivo) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [producto_id, tipo, cantidad, req.user.id, ip, latitud, longitud, dispositivo]
+            `INSERT INTO Movimientos (producto_id, tipo, cantidad, usuario_id, ip, latitud, longitud, dispositivo, fecha) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [producto_id, tipo, cantidad, req.user.id, ip, latitud, longitud, dispositivo, fechaVal]
         );
 
         // Emitir evento socket para actualizar stock a todos los clientes (El trigger de SQLite ya actualizó la BD)
@@ -229,9 +230,68 @@ app.get('/api/movimientos', authenticateToken, requireAdmin, async (req, res) =>
     }
 });
 
+app.put('/api/movimientos/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { cantidad, fecha } = req.body;
+    try {
+        const mov = await dbGet('SELECT * FROM Movimientos WHERE id = ?', [id]);
+        if (!mov) return res.status(404).json({ error: 'Movimiento no encontrado' });
+
+        // Solo admin puede editar los de otros
+        if (req.user.rol !== 'admin' && mov.usuario_id !== req.user.id) {
+            return res.status(403).json({ error: 'No autorizado para editar este movimiento' });
+        }
+
+        const dif = cantidad - mov.cantidad;
+        const fechaVal = fecha ? new Date(fecha).toISOString() : mov.fecha;
+
+        await dbRun('UPDATE Movimientos SET cantidad = ?, fecha = ? WHERE id = ?', [cantidad, fechaVal, id]);
+
+        if (dif !== 0) {
+            if (mov.tipo === 'Entrada') {
+                await dbRun('UPDATE Productos SET stock_actual = stock_actual + ? WHERE id = ?', [dif, mov.producto_id]);
+            } else if (mov.tipo === 'Salida') {
+                await dbRun('UPDATE Productos SET stock_actual = stock_actual - ? WHERE id = ?', [dif, mov.producto_id]);
+            }
+            const productos = await dbAll('SELECT * FROM Productos');
+            io.emit('stock_update', productos);
+        }
+
+        res.json({ success: true, message: 'Movimiento actualizado' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/movimientos/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const mov = await dbGet('SELECT * FROM Movimientos WHERE id = ?', [id]);
+        if (!mov) return res.status(404).json({ error: 'Movimiento no encontrado' });
+
+        if (req.user.rol !== 'admin' && mov.usuario_id !== req.user.id) {
+            return res.status(403).json({ error: 'No autorizado para eliminar' });
+        }
+
+        if (mov.tipo === 'Entrada') {
+            await dbRun('UPDATE Productos SET stock_actual = stock_actual - ? WHERE id = ?', [mov.cantidad, mov.producto_id]);
+        } else if (mov.tipo === 'Salida') {
+            await dbRun('UPDATE Productos SET stock_actual = stock_actual + ? WHERE id = ?', [mov.cantidad, mov.producto_id]);
+        }
+
+        await dbRun('DELETE FROM Movimientos WHERE id = ?', [id]);
+        const productos = await dbAll('SELECT * FROM Productos');
+        io.emit('stock_update', productos);
+
+        res.json({ success: true, message: 'Movimiento eliminado y stock restaurado' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- SERVICIOS ---
 app.post('/api/servicios', authenticateToken, async (req, res) => {
-    const { cliente_nombre, identificacion, tipo_servicio } = req.body;
+    const { cliente_nombre, identificacion, tipo_servicio, fecha } = req.body;
     try {
         // Lógica de cálculo de comisión simple
         let comision = 0;
@@ -241,10 +301,12 @@ app.post('/api/servicios', authenticateToken, async (req, res) => {
         else if (tipo_servicio === 'Renovación') comision = 10.0;
         else comision = 25.0; // OLO, TFI etc.
 
+        const fechaVal = fecha ? new Date(fecha).toISOString() : new Date().toISOString();
+
         await dbRun(
-            `INSERT INTO Servicios (cliente_nombre, identificacion, tipo_servicio, estado, asesor_id, comision) 
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [cliente_nombre, identificacion, tipo_servicio, 'Pendiente', req.user.id, comision]
+            `INSERT INTO Servicios (cliente_nombre, identificacion, tipo_servicio, estado, asesor_id, comision, fecha) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [cliente_nombre, identificacion, tipo_servicio, 'Pendiente', req.user.id, comision, fechaVal]
         );
         
         await dbRun('INSERT INTO Logs_Auditoria (usuario_id, accion, descripcion) VALUES (?, ?, ?)',
@@ -278,6 +340,53 @@ app.get('/api/mis-comisiones', authenticateToken, async (req, res) => {
     }
 });
 
+app.put('/api/servicios/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { cliente_nombre, identificacion, tipo_servicio, fecha } = req.body;
+    try {
+        const serv = await dbGet('SELECT * FROM Servicios WHERE id = ?', [id]);
+        if (!serv) return res.status(404).json({ error: 'Servicio no encontrado' });
+
+        if (req.user.rol !== 'admin' && serv.asesor_id !== req.user.id) {
+            return res.status(403).json({ error: 'No autorizado para editar' });
+        }
+
+        let comision = 0;
+        if (tipo_servicio.includes('post')) comision = 35.0;
+        else if (tipo_servicio.includes('prepago')) comision = 15.0;
+        else if (tipo_servicio.includes('internet')) comision = 20.0;
+        else if (tipo_servicio === 'Renovación') comision = 10.0;
+        else comision = 25.0;
+
+        const fechaVal = fecha ? new Date(fecha).toISOString() : serv.fecha;
+
+        await dbRun(
+            'UPDATE Servicios SET cliente_nombre = ?, identificacion = ?, tipo_servicio = ?, comision = ?, fecha = ? WHERE id = ?',
+            [cliente_nombre, identificacion, tipo_servicio, comision, fechaVal, id]
+        );
+        res.json({ success: true, message: 'Servicio actualizado' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/servicios/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const serv = await dbGet('SELECT * FROM Servicios WHERE id = ?', [id]);
+        if (!serv) return res.status(404).json({ error: 'Servicio no encontrado' });
+
+        if (req.user.rol !== 'admin' && serv.asesor_id !== req.user.id) {
+            return res.status(403).json({ error: 'No autorizado para eliminar' });
+        }
+
+        await dbRun('DELETE FROM Servicios WHERE id = ?', [id]);
+        res.json({ success: true, message: 'Servicio eliminado' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- REPORTES ---
 app.get('/api/reportes/ventas', authenticateToken, async (req, res) => {
     try {
@@ -289,7 +398,7 @@ app.get('/api/reportes/ventas', authenticateToken, async (req, res) => {
             WHERE m.tipo = 'Salida'
         `;
         let serviciosQuery = `
-            SELECT s.id, s.tipo_servicio as categoria, s.fecha, ('DNI/RUC: ' || s.identificacion || ' - Cliente: ' || s.cliente_nombre) as detalle, 1 as cantidad, s.comision as total, u.nombre as asesor_nombre
+            SELECT s.id, s.tipo_servicio as categoria, s.fecha, ('DNI/RUC: ' || s.identificacion || ' - Cliente: ' || s.cliente_nombre) as detalle, 1 as cantidad, s.comision as total, u.nombre as asesor_nombre, s.cliente_nombre, s.identificacion
             FROM Servicios s
             JOIN Usuarios u ON s.asesor_id = u.id
             WHERE 1=1

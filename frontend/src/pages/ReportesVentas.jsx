@@ -10,6 +10,10 @@ const ReportesVentas = () => {
     const [endDate, setEndDate] = useState('');
     const [selectedAsesor, setSelectedAsesor] = useState('ALL');
 
+    // Modals state
+    const [editingMov, setEditingMov] = useState(null);
+    const [editingServ, setEditingServ] = useState(null);
+
     // Tipos solicitados por el usuario
     const tiposRequeridos = [
         'Celulares', 'Accesorio', 'alta nueva post', 'portabilidad post', 
@@ -33,6 +37,67 @@ const ReportesVentas = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleDelete = async (r) => {
+        if (!window.confirm('¿Estás seguro de eliminar este registro?')) return;
+        const endpoint = r.origen === 'Producto' ? `/api/movimientos/${r.id}` : `/api/servicios/${r.id}`;
+        try {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + endpoint, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                alert('Registro eliminado');
+                fetchReportes();
+            } else {
+                const data = await res.json();
+                alert('Error al eliminar: ' + data.error);
+            }
+        } catch (err) { console.error(err); }
+    };
+
+    const handleUpdateMov = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/movimientos/${editingMov.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ cantidad: editingMov.cantidad, fecha: editingMov.fecha })
+            });
+            if (res.ok) {
+                alert('Actualizado');
+                setEditingMov(null);
+                fetchReportes();
+            } else {
+                const data = await res.json();
+                alert('Error: ' + data.error);
+            }
+        } catch(err) { console.error(err); }
+    };
+
+    const handleUpdateServ = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/servicios/${editingServ.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    cliente_nombre: editingServ.cliente_nombre || '',
+                    identificacion: editingServ.identificacion || '',
+                    tipo_servicio: editingServ.categoria,
+                    fecha: editingServ.fecha
+                })
+            });
+            if (res.ok) {
+                alert('Actualizado');
+                setEditingServ(null);
+                fetchReportes();
+            } else {
+                const data = await res.json();
+                alert('Error: ' + data.error);
+            }
+        } catch(err) { console.error(err); }
     };
 
     if (loading) return <div style={{padding: '20px'}}>Cargando reportes...</div>;
@@ -209,23 +274,89 @@ const ReportesVentas = () => {
                                         <th>Asesor</th>
                                         <th>Cant.</th>
                                         <th>Valor Generado</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {detallesFiltrados.map((r, i) => (
                                         <tr key={i}>
-                                            <td>{new Date(r.fecha + 'Z').toLocaleString()}</td>
+                                            <td>{new Date(r.fecha).toLocaleString()}</td>
                                             <td style={{textTransform: 'capitalize'}}>{r.categoria}</td>
                                             <td>{r.detalle}</td>
                                             <td>{r.asesor_nombre}</td>
                                             <td>{r.cantidad}</td>
                                             <td className="text-green">S/.{r.total?.toFixed(2)}</td>
+                                            <td>
+                                                {(user?.rol === 'admin' || user?.nombre === r.asesor_nombre) && (
+                                                    <div style={{display: 'flex', gap: '5px'}}>
+                                                        <button onClick={() => r.origen === 'Producto' ? setEditingMov(r) : setEditingServ(r)} className="btn-primary" style={{padding: '4px 8px', fontSize: '0.8rem'}}>Editar</button>
+                                                        <button onClick={() => handleDelete(r)} className="btn-primary" style={{background: 'var(--primary-red)', padding: '4px 8px', fontSize: '0.8rem'}}>Borrar</button>
+                                                    </div>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                     )}
+                </div>
+            )}
+
+            {editingMov && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+                    <div className="glass-panel" style={{ width: '400px', backgroundColor: 'white' }}>
+                        <h3>Editar Venta de Producto</h3>
+                        <p style={{fontSize: '0.9rem', color: 'var(--text-secondary)'}}>{editingMov.detalle}</p>
+                        <form onSubmit={handleUpdateMov}>
+                            <label style={{display: 'block', marginTop: '10px'}}>Fecha:</label>
+                            <input type="datetime-local" className="input-field" value={editingMov.fecha ? new Date(new Date(editingMov.fecha).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} onChange={e => setEditingMov({...editingMov, fecha: e.target.value})} />
+                            
+                            <label style={{display: 'block', marginTop: '10px'}}>Cantidad:</label>
+                            <input type="number" min="1" className="input-field" value={editingMov.cantidad} onChange={e => setEditingMov({...editingMov, cantidad: Number(e.target.value)})} required />
+                            
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Guardar</button>
+                                <button type="button" className="btn-primary" style={{ flex: 1, backgroundColor: 'var(--text-secondary)' }} onClick={() => setEditingMov(null)}>Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {editingServ && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+                    <div className="glass-panel" style={{ width: '400px', backgroundColor: 'white' }}>
+                        <h3>Editar Servicio</h3>
+                        <form onSubmit={handleUpdateServ}>
+                            <label style={{display: 'block', marginTop: '10px'}}>Fecha:</label>
+                            <input type="datetime-local" className="input-field" value={editingServ.fecha ? new Date(new Date(editingServ.fecha).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} onChange={e => setEditingServ({...editingServ, fecha: e.target.value})} />
+                            
+                            <label style={{display: 'block', marginTop: '10px'}}>Cliente Nombre:</label>
+                            <input type="text" className="input-field" value={editingServ.cliente_nombre || ''} onChange={e => setEditingServ({...editingServ, cliente_nombre: e.target.value})} required />
+                            
+                            <label style={{display: 'block', marginTop: '10px'}}>Identificación (DNI/RUC):</label>
+                            <input type="text" className="input-field" value={editingServ.identificacion || ''} onChange={e => setEditingServ({...editingServ, identificacion: e.target.value})} required />
+                            
+                            <label style={{display: 'block', marginTop: '10px'}}>Tipo de Servicio:</label>
+                            <select className="input-field" value={editingServ.categoria} onChange={e => setEditingServ({...editingServ, categoria: e.target.value})} required>
+                                <option value="alta nueva post">Alta Nueva Postpago</option>
+                                <option value="portabilidad post">Portabilidad Postpago</option>
+                                <option value="alta nueva prepago">Alta Nueva Prepago</option>
+                                <option value="portabilidad prepago">Portabilidad Prepago</option>
+                                <option value="internet">Internet</option>
+                                <option value="internet mas TV">Internet + TV</option>
+                                <option value="OLO">Contrato OLO</option>
+                                <option value="TFI">Contrato TFI</option>
+                                <option value="Renovación">Renovación</option>
+                            </select>
+
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Guardar</button>
+                                <button type="button" className="btn-primary" style={{ flex: 1, backgroundColor: 'var(--text-secondary)' }} onClick={() => setEditingServ(null)}>Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
         </div>
