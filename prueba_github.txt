@@ -1,0 +1,1 @@
+Este es un archivo de prueba para comprobar que GitHub Desktop está leyendo la carpeta correcta.
