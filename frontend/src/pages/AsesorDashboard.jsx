@@ -406,7 +406,11 @@ const AsesorDashboard = () => {
                                     <h4 className="mb-2">Registrar Venta</h4>
                                     <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
                                         <strong>{productoSeleccionado.nombre}</strong><br/>
-                                        Precio: S/.{productoSeleccionado.precio_venta}
+                                        <span className="text-secondary" style={{fontSize: '0.9rem'}}>SKU: {productoSeleccionado.sku}</span><br/>
+                                        <span className="text-secondary" style={{fontSize: '0.9rem'}}>Stock Disponible: {productoSeleccionado.stock_actual}</span><br/>
+                                        <div style={{marginTop: '5px', fontSize: '1.1rem'}}>
+                                            Precio: <span style={{fontWeight: 'bold', color: 'var(--primary-color)'}}>S/.{productoSeleccionado.precio_venta}</span>
+                                        </div>
                                     </div>
                                     <form onSubmit={handleVenta}>
                                         <label style={{ display: 'block', marginBottom: '5px' }}>Cantidad:</label>
