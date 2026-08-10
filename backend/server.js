@@ -291,7 +291,7 @@ app.delete('/api/movimientos/:id', authenticateToken, async (req, res) => {
 
 // --- SERVICIOS ---
 app.post('/api/servicios', authenticateToken, async (req, res) => {
-    const { cliente_nombre, identificacion, tipo_servicio, fecha } = req.body;
+    const { cliente_nombre, identificacion, tipo_servicio, fecha, modalidad, plazo_meses, cuota_inicial, importe } = req.body;
     try {
         // Lógica de cálculo de comisión simple
         let comision = 0;
@@ -304,9 +304,9 @@ app.post('/api/servicios', authenticateToken, async (req, res) => {
         const fechaVal = fecha ? new Date(fecha).toISOString() : new Date().toISOString();
 
         await dbRun(
-            `INSERT INTO Servicios (cliente_nombre, identificacion, tipo_servicio, estado, asesor_id, comision, fecha) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [cliente_nombre, identificacion, tipo_servicio, 'Pendiente', req.user.id, comision, fechaVal]
+            `INSERT INTO Servicios (cliente_nombre, identificacion, tipo_servicio, estado, asesor_id, comision, fecha, modalidad, plazo_meses, cuota_inicial, importe) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [cliente_nombre, identificacion, tipo_servicio, 'Pendiente', req.user.id, comision, fechaVal, modalidad || null, plazo_meses || null, cuota_inicial || null, importe || null]
         );
         
         await dbRun('INSERT INTO Logs_Auditoria (usuario_id, accion, descripcion) VALUES (?, ?, ?)',
@@ -342,7 +342,7 @@ app.get('/api/mis-comisiones', authenticateToken, async (req, res) => {
 
 app.put('/api/servicios/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { cliente_nombre, identificacion, tipo_servicio, fecha } = req.body;
+    const { cliente_nombre, identificacion, tipo_servicio, fecha, modalidad, plazo_meses, cuota_inicial, importe } = req.body;
     try {
         const serv = await dbGet('SELECT * FROM Servicios WHERE id = ?', [id]);
         if (!serv) return res.status(404).json({ error: 'Servicio no encontrado' });
@@ -361,8 +361,8 @@ app.put('/api/servicios/:id', authenticateToken, async (req, res) => {
         const fechaVal = fecha ? new Date(fecha).toISOString() : serv.fecha;
 
         await dbRun(
-            'UPDATE Servicios SET cliente_nombre = ?, identificacion = ?, tipo_servicio = ?, comision = ?, fecha = ? WHERE id = ?',
-            [cliente_nombre, identificacion, tipo_servicio, comision, fechaVal, id]
+            'UPDATE Servicios SET cliente_nombre = ?, identificacion = ?, tipo_servicio = ?, comision = ?, fecha = ?, modalidad = ?, plazo_meses = ?, cuota_inicial = ?, importe = ? WHERE id = ?',
+            [cliente_nombre, identificacion, tipo_servicio, comision, fechaVal, modalidad || null, plazo_meses || null, cuota_inicial || null, importe || null, id]
         );
         res.json({ success: true, message: 'Servicio actualizado' });
     } catch (err) {
@@ -398,7 +398,9 @@ app.get('/api/reportes/ventas', authenticateToken, async (req, res) => {
             WHERE m.tipo = 'Salida'
         `;
         let serviciosQuery = `
-            SELECT s.id, s.tipo_servicio as categoria, s.fecha, ('DNI/RUC: ' || s.identificacion || ' - Cliente: ' || s.cliente_nombre) as detalle, 1 as cantidad, s.comision as total, u.nombre as asesor_nombre, s.cliente_nombre, s.identificacion
+            SELECT s.id, s.tipo_servicio as categoria, s.fecha, 
+            ('DNI/RUC: ' || s.identificacion || ' - Cliente: ' || s.cliente_nombre) as detalle, 
+            1 as cantidad, s.comision as total, u.nombre as asesor_nombre, s.cliente_nombre, s.identificacion, s.modalidad, s.plazo_meses, s.cuota_inicial, s.importe
             FROM Servicios s
             JOIN Usuarios u ON s.asesor_id = u.id
             WHERE 1=1
@@ -642,6 +644,16 @@ const initDb = async () => {
                     const hashAdmin = await bcrypt.hash('admin123', 10);
                     await dbRun("INSERT INTO Usuarios (nombre, email, password_hash, rol) VALUES ('Admin Principal', 'admin@claro.com', ?, 'admin')", [hashAdmin]);
                     console.log('Usuario admin por defecto creado automáticamente: admin@claro.com / admin123');
+                }
+
+                const alterQueries = [
+                    "ALTER TABLE Servicios ADD COLUMN modalidad TEXT",
+                    "ALTER TABLE Servicios ADD COLUMN plazo_meses INTEGER",
+                    "ALTER TABLE Servicios ADD COLUMN cuota_inicial REAL",
+                    "ALTER TABLE Servicios ADD COLUMN importe REAL"
+                ];
+                for (const q of alterQueries) {
+                    try { await dbRun(q); } catch(e) {}
                 }
             } catch (innerErr) {
                 console.log('Esperando a que se creen las tablas...');

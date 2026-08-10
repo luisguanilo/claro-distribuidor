@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS Servicios (
     asesor_id INTEGER NOT NULL,
     comision REAL DEFAULT 0,
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    modalidad TEXT,
+    plazo_meses INTEGER,
+    cuota_inicial REAL,
+    importe REAL,
     FOREIGN KEY (asesor_id) REFERENCES Usuarios(id)
 );
 

@@ -31,6 +31,12 @@ const AsesorDashboard = () => {
     const [tipoServicio, setTipoServicio] = useState('alta nueva post');
     const [fechaServicio, setFechaServicio] = useState('');
 
+    // Renovación specific states
+    const [modalidad, setModalidad] = useState('Cuotas');
+    const [plazoMeses, setPlazoMeses] = useState(12);
+    const [cuotaInicial, setCuotaInicial] = useState(0);
+    const [importe, setImporte] = useState('');
+
     // Search state
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState(null);
@@ -250,6 +256,16 @@ const AsesorDashboard = () => {
         setLoading(true);
         const payload = { cliente_nombre: clienteNombre, identificacion, tipo_servicio: tipoServicio, fecha: fechaServicio || undefined };
 
+        if (tipoServicio === 'Renovación') {
+            payload.modalidad = modalidad;
+            payload.plazo_meses = modalidad === 'Contado' ? 18 : Number(plazoMeses);
+            if (modalidad === 'Cuotas') {
+                payload.cuota_inicial = Number(cuotaInicial);
+            } else {
+                payload.importe = Number(importe);
+            }
+        }
+
         if (isOffline) {
             const queue = await localforage.getItem('queueServicios') || [];
             queue.push(payload);
@@ -459,6 +475,47 @@ const AsesorDashboard = () => {
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Fecha (Opcional):</label>
                             <input type="datetime-local" className="input-field" value={fechaServicio} onChange={e => setFechaServicio(e.target.value)} />
                         </div>
+
+                        {tipoServicio === 'Renovación' && (
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', width: '100%', padding: '10px', background: 'rgba(238, 20, 20, 0.05)', borderRadius: '8px', border: '1px solid rgba(238, 20, 20, 0.2)' }}>
+                                <div style={{ flex: 1, minWidth: '150px' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Modalidad:</label>
+                                    <select className="input-field" value={modalidad} onChange={e => setModalidad(e.target.value)} required>
+                                        <option value="Cuotas">Cuotas</option>
+                                        <option value="Contado">Contado</option>
+                                    </select>
+                                </div>
+                                {modalidad === 'Cuotas' ? (
+                                    <>
+                                        <div style={{ flex: 1, minWidth: '150px' }}>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Plazo (Meses):</label>
+                                            <select className="input-field" value={plazoMeses} onChange={e => setPlazoMeses(e.target.value)} required>
+                                                <option value="6">6 meses</option>
+                                                <option value="12">12 meses</option>
+                                                <option value="18">18 meses</option>
+                                                <option value="24">24 meses</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: '150px' }}>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Cuota Inicial (S/.):</label>
+                                            <input type="number" step="0.01" min="0" className="input-field" value={cuotaInicial} onChange={e => setCuotaInicial(e.target.value)} required />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div style={{ flex: 1, minWidth: '150px' }}>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Plazo (Meses):</label>
+                                            <input type="text" className="input-field" value="18 meses (Fijo)" readOnly style={{ background: '#f5f5f5', color: '#666' }} />
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: '150px' }}>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Importe (S/.):</label>
+                                            <input type="number" step="0.01" min="0" className="input-field" value={importe} onChange={e => setImporte(e.target.value)} required />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         <button type="submit" className="btn-primary" disabled={loading} style={{ minWidth: '150px' }}>
                             Registrar
                         </button>

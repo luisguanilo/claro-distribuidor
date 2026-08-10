@@ -86,7 +86,11 @@ const ReportesVentas = () => {
                     cliente_nombre: editingServ.cliente_nombre || '',
                     identificacion: editingServ.identificacion || '',
                     tipo_servicio: editingServ.categoria,
-                    fecha: editingServ.fecha
+                    fecha: editingServ.fecha,
+                    modalidad: editingServ.categoria === 'Renovación' ? (editingServ.modalidad || 'Cuotas') : undefined,
+                    plazo_meses: editingServ.categoria === 'Renovación' ? ((editingServ.modalidad || 'Cuotas') === 'Contado' ? 18 : Number(editingServ.plazo_meses || 12)) : undefined,
+                    cuota_inicial: editingServ.categoria === 'Renovación' && (editingServ.modalidad || 'Cuotas') === 'Cuotas' ? Number(editingServ.cuota_inicial || 0) : undefined,
+                    importe: editingServ.categoria === 'Renovación' && (editingServ.modalidad || 'Cuotas') === 'Contado' ? Number(editingServ.importe || 0) : undefined
                 })
             });
             if (res.ok) {
@@ -282,7 +286,18 @@ const ReportesVentas = () => {
                                         <tr key={i}>
                                             <td>{new Date(r.fecha).toLocaleString()}</td>
                                             <td style={{textTransform: 'capitalize'}}>{r.categoria}</td>
-                                            <td>{r.detalle}</td>
+                                            <td>
+                                                {r.detalle}
+                                                {r.categoria === 'Renovación' && r.modalidad && (
+                                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                                        <span style={{background: 'rgba(238, 20, 20, 0.1)', padding: '2px 6px', borderRadius: '4px'}}>
+                                                            {r.modalidad} {r.plazo_meses ? `(${r.plazo_meses} meses)` : ''}
+                                                            {r.modalidad === 'Cuotas' && r.cuota_inicial !== null ? ` | Inicial: S/.${r.cuota_inicial}` : ''}
+                                                            {r.modalidad === 'Contado' && r.importe !== null ? ` | Importe: S/.${r.importe}` : ''}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td>{r.asesor_nombre}</td>
                                             <td>{r.cantidad}</td>
                                             <td className="text-green">S/.{r.total?.toFixed(2)}</td>
@@ -340,16 +355,47 @@ const ReportesVentas = () => {
                             
                             <label style={{display: 'block', marginTop: '10px'}}>Tipo de Servicio:</label>
                             <select className="input-field" value={editingServ.categoria} onChange={e => setEditingServ({...editingServ, categoria: e.target.value})} required>
-                                <option value="alta nueva post">Alta Nueva Postpago</option>
-                                <option value="portabilidad post">Portabilidad Postpago</option>
-                                <option value="alta nueva prepago">Alta Nueva Prepago</option>
-                                <option value="portabilidad prepago">Portabilidad Prepago</option>
-                                <option value="internet">Internet</option>
-                                <option value="internet mas TV">Internet + TV</option>
-                                <option value="OLO">Contrato OLO</option>
-                                <option value="TFI">Contrato TFI</option>
-                                <option value="Renovación">Renovación</option>
-                            </select>
+                                                <option value="alta nueva post">Alta Nueva Postpago</option>
+                                                <option value="portabilidad post">Portabilidad Postpago</option>
+                                                <option value="alta nueva prepago">Alta Nueva Prepago</option>
+                                                <option value="portabilidad prepago">Portabilidad Prepago</option>
+                                                <option value="internet">Internet</option>
+                                                <option value="internet mas TV">Internet + TV</option>
+                                                <option value="OLO">Contrato OLO</option>
+                                                <option value="TFI">Contrato TFI</option>
+                                                <option value="Renovación">Renovación</option>
+                                            </select>
+
+                            {editingServ.categoria === 'Renovación' && (
+                                <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(238, 20, 20, 0.05)', borderRadius: '8px', border: '1px solid rgba(238, 20, 20, 0.2)' }}>
+                                    <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Modalidad:</label>
+                                    <select className="input-field mb-2" value={editingServ.modalidad || 'Cuotas'} onChange={e => setEditingServ({...editingServ, modalidad: e.target.value})} required>
+                                        <option value="Cuotas">Cuotas</option>
+                                        <option value="Contado">Contado</option>
+                                    </select>
+                                    
+                                    {(editingServ.modalidad || 'Cuotas') === 'Cuotas' ? (
+                                        <>
+                                            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Plazo (Meses):</label>
+                                            <select className="input-field mb-2" value={editingServ.plazo_meses || 12} onChange={e => setEditingServ({...editingServ, plazo_meses: e.target.value})} required>
+                                                <option value="6">6 meses</option>
+                                                <option value="12">12 meses</option>
+                                                <option value="18">18 meses</option>
+                                                <option value="24">24 meses</option>
+                                            </select>
+                                            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Cuota Inicial (S/.):</label>
+                                            <input type="number" step="0.01" min="0" className="input-field" value={editingServ.cuota_inicial ?? 0} onChange={e => setEditingServ({...editingServ, cuota_inicial: e.target.value})} required />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Plazo (Meses):</label>
+                                            <input type="text" className="input-field mb-2" value="18 meses (Fijo)" readOnly style={{ background: '#f5f5f5', color: '#666' }} />
+                                            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Importe (S/.):</label>
+                                            <input type="number" step="0.01" min="0" className="input-field" value={editingServ.importe ?? ''} onChange={e => setEditingServ({...editingServ, importe: e.target.value})} required />
+                                        </>
+                                    )}
+                                </div>
+                            )}
 
                             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                                 <button type="submit" className="btn-primary" style={{ flex: 1 }}>Guardar</button>
