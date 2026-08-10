@@ -44,61 +44,56 @@ const StockControl = () => {
         }
     };
 
-    const handleIngreso = async (e) => {
+    const handleActualizar = async (e) => {
         e.preventDefault();
-        if (!selectedProduct || !cantidadIngreso || cantidadIngreso <= 0) return;
+        if (!selectedProduct) return;
+        
+        const updatesVenta = precioVentaInput && Number(precioVentaInput) >= 0;
+        const updatesStock = cantidadIngreso && Number(cantidadIngreso) > 0;
 
-        if (!window.confirm(`¿Está seguro de ingresar ${cantidadIngreso} unidades de ${selectedProduct.nombre}?`)) return;
-
-        setLoading(true);
-        try {
-            const payload = {
-                producto_id: selectedProduct.id,
-                tipo: 'Entrada',
-                cantidad: Number(cantidadIngreso),
-                ip: '127.0.0.1',
-                dispositivo: navigator.userAgent
-            };
-
-            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api/movimientos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                alert('Stock actualizado exitosamente.');
-                setCantidadIngreso('');
-                setSelectedProduct(null);
-                handleSearch(null, searchQuery); // Refresh
-            } else {
-                alert('Error al actualizar stock.');
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
+        if (!updatesVenta && !updatesStock) {
+            return alert("Ingrese un precio o una cantidad para actualizar.");
         }
-    };
 
-    const handleActualizarPrecio = async (e) => {
-        e.preventDefault();
-        if (!selectedProduct || !precioVentaInput || precioVentaInput < 0) return;
         setLoading(true);
-        try {
-            const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/productos/${selectedProduct.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ precio_venta: Number(precioVentaInput) })
-            });
+        let success = true;
 
-            if (res.ok) {
-                alert('Precio actualizado exitosamente.');
+        try {
+            // Update Price if changed
+            if (updatesVenta) {
+                const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + `/api/productos/${selectedProduct.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ precio_venta: Number(precioVentaInput) })
+                });
+                if (!res.ok) success = false;
+            }
+
+            // Update Stock if added
+            if (updatesStock) {
+                const payload = {
+                    producto_id: selectedProduct.id,
+                    tipo: 'Entrada',
+                    cantidad: Number(cantidadIngreso),
+                    ip: '127.0.0.1',
+                    dispositivo: navigator.userAgent
+                };
+                const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api/movimientos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) success = false;
+            }
+
+            if (success) {
+                alert('Producto actualizado exitosamente.');
+                setCantidadIngreso('');
                 setPrecioVentaInput('');
                 setSelectedProduct(null);
                 handleSearch(null, searchQuery);
             } else {
-                alert('Error al actualizar precio.');
+                alert('Hubo un error al actualizar algunos datos.');
             }
         } catch (err) {
             console.error(err);
@@ -251,8 +246,8 @@ const StockControl = () => {
                             <span className="text-secondary">Precio Actual: S/.{selectedProduct.precio_venta}</span>
                         </div>
                         
-                        <form onSubmit={handleIngreso} style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-color)' }}>
-                            <label style={{ display: 'block', marginBottom: '5px' }}>Agregar Stock (Ingreso):</label>
+                        <form onSubmit={handleActualizar}>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Agregar Stock (Opcional):</label>
                             <input 
                                 type="number" 
                                 min="1" 
@@ -261,13 +256,8 @@ const StockControl = () => {
                                 onChange={e => setCantidadIngreso(e.target.value)} 
                                 placeholder="Cant. a sumar"
                             />
-                            <button type="submit" className="btn-primary" disabled={loading || !cantidadIngreso} style={{width: '100%'}}>
-                                Confirmar Ingreso
-                            </button>
-                        </form>
-
-                        <form onSubmit={handleActualizarPrecio}>
-                            <label style={{ display: 'block', marginBottom: '5px' }}>Actualizar Precio de Venta (S/.):</label>
+                            
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Nuevo Precio de Venta (Opcional):</label>
                             <input 
                                 type="number" 
                                 step="0.01"
@@ -275,10 +265,11 @@ const StockControl = () => {
                                 className="input-field mb-2" 
                                 value={precioVentaInput} 
                                 onChange={e => setPrecioVentaInput(e.target.value)} 
-                                required 
+                                placeholder="Ej: 899.90"
                             />
-                            <button type="submit" className="btn-primary" disabled={loading} style={{width: '100%', background: 'var(--success-color)'}}>
-                                Guardar Precio
+
+                            <button type="submit" className="btn-primary" disabled={loading} style={{width: '100%'}}>
+                                Guardar Cambios
                             </button>
                         </form>
                     </div>
