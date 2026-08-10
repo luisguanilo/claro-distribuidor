@@ -522,7 +522,29 @@ app.post('/api/productos/importar', authenticateToken, requireAdmin, upload.sing
 });
 
 const PORT = process.env.PORT || 3000;
+
+const initDb = async () => {
+    try {
+        // Wait a bit to ensure database schema is loaded (SQLite async exec)
+        setTimeout(async () => {
+            try {
+                const admin = await dbGet("SELECT * FROM Usuarios WHERE email = 'admin@claro.com'");
+                if (!admin) {
+                    const hashAdmin = await bcrypt.hash('admin123', 10);
+                    await dbRun("INSERT INTO Usuarios (nombre, email, password_hash, rol) VALUES ('Admin Principal', 'admin@claro.com', ?, 'admin')", [hashAdmin]);
+                    console.log('Usuario admin por defecto creado automáticamente: admin@claro.com / admin123');
+                }
+            } catch (innerErr) {
+                console.log('Esperando a que se creen las tablas...');
+            }
+        }, 1500);
+    } catch (err) {
+        console.error('Error inicializando base de datos:', err);
+    }
+};
+
 server.listen(PORT, () => {
+    initDb();
     console.log(`Servidor backend corriendo en el puerto ${PORT}`);
 });
 
