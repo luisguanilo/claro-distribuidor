@@ -72,11 +72,12 @@ app.get('/api/usuarios', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 app.post('/api/usuarios', authenticateToken, requireAdmin, async (req, res) => {
-    const { nombre, email, password } = req.body;
+    const { nombre, email, password, rol } = req.body;
     try {
         const hash = await bcrypt.hash(password, 10);
+        const userRol = rol || 'asesor';
         await dbRun('INSERT INTO Usuarios (nombre, email, password_hash, rol, estado) VALUES (?, ?, ?, ?, ?)',
-            [nombre, email, hash, 'asesor', 'activo']);
+            [nombre, email, hash, userRol, 'activo']);
         res.json({ success: true, message: 'Usuario creado exitosamente' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -84,13 +85,14 @@ app.post('/api/usuarios', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 app.put('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res) => {
-    const { nombre, email, password } = req.body;
+    const { nombre, email, password, rol } = req.body;
     try {
+        const userRol = rol || 'asesor';
         if (password) {
             const hash = await bcrypt.hash(password, 10);
-            await dbRun('UPDATE Usuarios SET nombre = ?, email = ?, password_hash = ? WHERE id = ?', [nombre, email, hash, req.params.id]);
+            await dbRun('UPDATE Usuarios SET nombre = ?, email = ?, password_hash = ?, rol = ? WHERE id = ?', [nombre, email, hash, userRol, req.params.id]);
         } else {
-            await dbRun('UPDATE Usuarios SET nombre = ?, email = ? WHERE id = ?', [nombre, email, req.params.id]);
+            await dbRun('UPDATE Usuarios SET nombre = ?, email = ?, rol = ? WHERE id = ?', [nombre, email, userRol, req.params.id]);
         }
         res.json({ success: true, message: 'Usuario actualizado exitosamente' });
     } catch (err) {

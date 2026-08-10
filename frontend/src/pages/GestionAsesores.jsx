@@ -8,7 +8,7 @@ const GestionAsesores = () => {
 
     // Form state
     const [editingUserId, setEditingUserId] = useState(null);
-    const [formData, setFormData] = useState({ nombre: '', email: '', password: '' });
+    const [formData, setFormData] = useState({ nombre: '', email: '', password: '', rol: 'asesor' });
 
     // Backup state
     const [backupFile, setBackupFile] = useState(null);
@@ -51,7 +51,7 @@ const GestionAsesores = () => {
 
             if (res.ok) {
                 alert(editingUserId ? 'Usuario actualizado' : 'Usuario creado');
-                setFormData({ nombre: '', email: '', password: '' });
+                setFormData({ nombre: '', email: '', password: '', rol: 'asesor' });
                 setEditingUserId(null);
                 fetchUsuarios();
             } else {
@@ -65,7 +65,7 @@ const GestionAsesores = () => {
 
     const handleEdit = (u) => {
         setEditingUserId(u.id);
-        setFormData({ nombre: u.nombre, email: u.email, password: '' });
+        setFormData({ nombre: u.nombre, email: u.email, password: '', rol: u.rol || 'asesor' });
     };
 
     const handleDelete = async (id) => {
@@ -86,7 +86,7 @@ const GestionAsesores = () => {
 
     const handleCancelEdit = () => {
         setEditingUserId(null);
-        setFormData({ nombre: '', email: '', password: '' });
+        setFormData({ nombre: '', email: '', password: '', rol: 'asesor' });
     };
 
     // --- BACKUP & RESTORE ---
@@ -152,6 +152,7 @@ const GestionAsesores = () => {
                                 <tr>
                                     <th>Nombre</th>
                                     <th>Email</th>
+                                    <th>Rol</th>
                                     <th>Estado</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -161,6 +162,7 @@ const GestionAsesores = () => {
                                     <tr key={u.id}>
                                         <td>{u.nombre}</td>
                                         <td>{u.email}</td>
+                                        <td style={{textTransform: 'capitalize'}}>{u.rol === 'admin' ? 'Administrador' : 'Asesor'}</td>
                                         <td className={u.estado === 'activo' ? 'text-green' : 'text-red'}>{u.estado}</td>
                                         <td>
                                             <button className="btn-primary" style={{ padding: '4px 8px', marginRight: '5px' }} onClick={() => handleEdit(u)}>Editar</button>
@@ -177,7 +179,7 @@ const GestionAsesores = () => {
 
                 {/* Formulario de Asesores */}
                 <div className="glass-panel" style={{ flex: 1 }}>
-                    <h3 className="mb-2">{editingUserId ? 'Editar Asesor' : 'Nuevo Asesor'}</h3>
+                    <h3 className="mb-2">{editingUserId ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
                     <form onSubmit={handleSubmit}>
                         <label style={{ display: 'block', marginBottom: '5px' }}>Nombre:</label>
                         <input type="text" className="input-field mb-2" value={formData.nombre} onChange={e => setFormData({...formData, nombre: e.target.value})} required />
@@ -185,11 +187,17 @@ const GestionAsesores = () => {
                         <label style={{ display: 'block', marginBottom: '5px' }}>Correo Electrónico:</label>
                         <input type="email" className="input-field mb-2" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
                         
+                        <label style={{ display: 'block', marginBottom: '5px' }}>Rol:</label>
+                        <select className="input-field mb-2" value={formData.rol} onChange={e => setFormData({...formData, rol: e.target.value})} required>
+                            <option value="asesor">Asesor</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+
                         <label style={{ display: 'block', marginBottom: '5px' }}>Contraseña {editingUserId && <span style={{fontSize:'0.8rem', color:'var(--text-secondary)'}}>(dejar en blanco para no cambiar)</span>}:</label>
                         <input type="password" className="input-field mb-2" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required={!editingUserId} />
                         
                         <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: '10px' }}>
-                            {editingUserId ? 'Guardar Cambios' : 'Crear Asesor'}
+                            {editingUserId ? 'Guardar Cambios' : 'Crear Usuario'}
                         </button>
                         {editingUserId && (
                             <button type="button" className="btn-primary" style={{ width: '100%', background: 'var(--text-secondary)' }} onClick={handleCancelEdit}>
