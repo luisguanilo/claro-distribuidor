@@ -15,9 +15,13 @@ if (usePostgres) {
     });
     console.log('Conectado a la base de datos PostgreSQL en la nube.');
     
-    // In a real scenario, we should also verify/create schema in Postgres here if it's empty,
-    // but typically we can run a separate migration script or assume it's created.
-    // For simplicity, we assume the schema is created or we can read a pg-specific schema.sql.
+    const schemaPgPath = path.resolve(__dirname, 'schema-pg.sql');
+    if (fs.existsSync(schemaPgPath)) {
+        const schemaPg = fs.readFileSync(schemaPgPath, 'utf8');
+        pool.query(schemaPg)
+            .then(() => console.log('Esquema de PostgreSQL cargado/verificado.'))
+            .catch(err => console.error('Error ejecutando el esquema PG:', err.message));
+    }
 } else {
     const dbPath = path.resolve(__dirname, 'database.sqlite');
     const schemaPath = path.resolve(__dirname, 'schema.sql');
